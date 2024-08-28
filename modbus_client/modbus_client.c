@@ -327,6 +327,7 @@ int main(int argc, char **argv)
     modbus_t *ctx = backend->createCtxt(backend);
     modbus_set_debug(ctx, debug);
     modbus_set_slave(ctx, slaveAddr);
+    modbus_set_response_timeout(ctx, 0, timeout_ms * 1000);
 
     //issue the request
     int ret = -1;
@@ -390,7 +391,7 @@ int main(int argc, char **argv)
         }
     }
     else {
-        printf("ERROR occured!\n");
+        printf("ERROR occured, ret:%d\n", ret);
         modbus_strerror(errno);
     }
 
