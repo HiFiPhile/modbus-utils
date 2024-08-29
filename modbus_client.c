@@ -24,18 +24,15 @@
 
 #include <stdio.h>     /* for printf */
 #include <stdlib.h>    /* for exit */
-#include <getopt.h>
 #include <string.h>
 #include <stdint.h>
+
+#include <argtable3.h>
 
 #include <modbus.h>
 #include "errno.h"
 
 #include "mbu-common.h"
-
-const char DebugOpt[]   = "debug";
-const char TcpOptVal[]  = "tcp";
-const char RtuOptVal[]  = "rtu";
 
 typedef enum {
     FuncNone =          -1,
@@ -50,39 +47,13 @@ typedef enum {
     WriteMultipleRegisters  = 0x10
 } FuncType;
 
-void printUsage(const char progName[]) {
-    printf("%s [--%s] [-m {rtu|tcp}] [-a<slave-addr=1>] [-c<read-no>=1]\n\t" \
-           "[-r<start-addr>=100] [-t<f-type>] [-o<timeout-ms>=1000] [{rtu-params|tcp-params}] serialport|host [<write-data>]\n", progName, DebugOpt);
-    printf("NOTE: if first reference address starts at 0, set -0\n");
-    printf("f-type:\n" \
-           "\t(0x01) Read Coils, (0x02) Read Discrete Inputs, (0x05) Write Single Coil\n" \
-           "\t(0x03) Read Holding Registers, (0x04) Read Input Registers, (0x06) WriteSingle Register\n" \
-           "\t(0x0F) WriteMultipleCoils, (0x10) Write Multiple register\n");
-    printf("rtu-params:\n" \
-           "\tb<baud-rate>=9600\n" \
-           "\td{7|8}<data-bits>=8\n" \
-           "\ts{1|2}<stop-bits>=1\n" \
-           "\tp{none|even|odd}=even\n");
-    printf("tcp-params:\n" \
-           "\tp<port>=502\n");
-    printf("Examples (run with default mbServer at port 1502): \n" \
-           "\tWrite data: \t%s --debug -mtcp -t0x10 -r0 -p1502 127.0.0.1 0x01 0x02 0x03\n" \
-           "\tRead that data:\t%s --debug -mtcp -t0x03 -r0 -p1502 127.0.0.1 -c3\n", progName, progName);
-}
-
 int main(int argc, char **argv)
 {
     int c;
     int ok;
 
-    int debug = 0;
     BackendParams *backend = 0;
-    int slaveAddr = 1;
-    int startAddr = 100;
-    int startReferenceAt0 = 0;
     int readWriteNo = 1;
-    int fType = FuncNone;
-    int timeout_ms = 1000;
 
     int isWriteFunction = 0;
     enum WriteDataType {
@@ -96,130 +67,109 @@ int main(int argc, char **argv)
         uint16_t *data16;
     } data;
 
-    while (1) {
-        int option_index = 0;
-        static struct option long_options[] = {
-            {DebugOpt,  no_argument, 0,  0},
-            {0, 0,  0,  0}
-        };
+    struct arg_int *addr   = arg_int1("a", "addr",              "<n>",                                  "Slave address");
+    struct arg_int *reg    = arg_int1("r", "reg",               "<n>",                                  "Start register");
+    struct arg_int *func   = arg_int1("f", "func",              "<n>",                                  "Modbus Function");
+    struct arg_rem *func1  = arg_rem("",                                                                "0x01 : Read Coils");
+    struct arg_rem *func2  = arg_rem("",                                                                "0x02 : Read Discrete Inputs");
+    struct arg_rem *func3  = arg_rem("",                                                                "0x03 : Read Holding Registers");
+    struct arg_rem *func4  = arg_rem("",                                                                "0x04 : Read Input Registers");
+    struct arg_rem *func5  = arg_rem("",                                                                "0x05 : Write Single Coil");
+    struct arg_rem *func6  = arg_rem("",                                                                "0x06 : Write Single Register");
+    struct arg_rem *func7  = arg_rem("",                                                                "0x0F : Write Multiple Coils");
+    struct arg_rem *func8  = arg_rem("",                                                                "0x10 : Write Multiple registers");
+    struct arg_int *dwrite = arg_intn("w", "write",             "<n..>", 0, 123,                        "Data to write");
+    struct arg_int *count  = arg_int0("c", "count",             "<unit>",                               "Data read count");
+    struct arg_int *tout   = arg_int0("o", "timeout",           "<ms>",                                 "Request timeout");
+    struct arg_lit *debug  = arg_lit0("v", "verbose",                                                   "Enable verbpse output");
+    struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
+    /* RTU */
+    struct arg_rex *cmd1   = arg_rex1(NULL, NULL,   "RTU",      NULL,                   ARG_REX_ICASE,  NULL);
+    struct arg_str *dev    = arg_str1("d", "dev",               "<device>",                             "Serial device");
+    struct arg_int *baud   = arg_int1("b", "baud",              "<n>",                                  "Baud rate");
+    struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "7|8",  "<7|8>=8",             ARG_REX_ICASE,  "Data bits");
+    struct arg_rex *sbit   = arg_rex0(NULL, "stop-bits", "1|2",  "<1|2>=1",             ARG_REX_ICASE,  "Stop bits");
+    struct arg_rex *parity = arg_rex0("p", "parity", "none|even|odd",
+                                                                "<none|even|odd>=even", ARG_REX_ICASE,  "Parity");
+    struct arg_end *end1    = arg_end(20);
+    /* TCP */
+    struct arg_rex *cmd2   = arg_rex1(NULL, NULL,   "TCP",      NULL, ARG_REX_ICASE,                    NULL);
+    struct arg_int *port   = arg_int0("p", "port",              "<port>=502",                           "Socket listening port");
+    struct arg_rex *ip     = arg_rex0("i", "addr", "^([0-9]{1,3}\\.){3}([0-9]{1,3})$",
+                                                                "<IP>=127.0.0.1",       ARG_REX_ICASE,  "Device IP address");
+    struct arg_end *end2    = arg_end(20);
 
-        c = getopt_long(argc, argv, "a:b:d:c:m:r:s:t:p:o:0",
-                        long_options, &option_index);
-        if (c == -1) {
-            break;
+    void* argtable1[] = {cmd1, addr, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
+                            dev, baud, dbit, sbit, parity, dwrite, count, tout, debug, help, end1};
+
+    void* argtable2[] = {cmd2, addr, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
+                            port, ip, dwrite, count, tout, debug, help, end2};
+
+    /* defaults */
+    count->ival[0]      = 1;
+    tout->ival[0]       = 1000;
+    dbit->sval[0]       = "8";
+    sbit->sval[0]       = "1";
+    parity->sval[0]     = "even";
+    port->ival[0]       = 502;
+    ip->sval[0]         = "127.0.0.1";
+
+    int nerrors1 = arg_parse(argc,argv,argtable1);
+    int nerrors2 = arg_parse(argc,argv,argtable2);
+    /* special case: '--help' takes precedence over error reporting */
+    if (help->count > 0)
+    {
+        printf("Modbus client utils.\n\n");
+        if (cmd1->count) {
+            arg_print_syntax(stdout, argtable1, "\n");
+            arg_print_glossary(stdout, argtable1, "  %-25s %s\n");
+        } else if (cmd2->count) {
+            arg_print_syntax(stdout, argtable2, "\n");
+            arg_print_glossary(stdout, argtable2, "  %-25s %s\n");
+        } else {
+            printf("Missing <rtu|tcp> command.\n");
         }
-
-        switch (c) {
-        case 0:
-            if (0 == strcmp(long_options[option_index].name, DebugOpt)) {
-                debug = 1;
-            }
-            break;
-
-        case 'a': {
-            slaveAddr = getInt(optarg, &ok);
-            if (0 == ok) {
-                printf("Slave address (%s) is not integer!\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-        }
-            break;
-
-        case 'c': {
-            readWriteNo = getInt(optarg, &ok);
-            if (0 == ok) {
-                printf("# elements to read/write (%s) is not integer!\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-        }
-            break;
-
-        case 'm':
-            if (0 == strcmp(optarg, TcpOptVal)) {
-                backend = createTcpBackend((TcpBackend*)malloc(sizeof(TcpBackend)));
-            }
-            else if (0 == strcmp(optarg, RtuOptVal))
-                backend = createRtuBackend((RtuBackend*)malloc(sizeof(RtuBackend)));
-            else {
-                printf("Unrecognized connection type %s\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-        case 'r': {
-            startAddr = getInt(optarg, &ok);
-            if (0 == ok) {
-                printf("Start address (%s) is not integer!\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-        }
-            break;
-
-        case 't': {
-            fType = getInt(optarg, &ok);
-            if (0 == ok) {
-                printf("Function type (%s) is not integer!\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-        }
-            break;
-
-        case 'o': {
-            timeout_ms = getInt(optarg, &ok);
-            if (0 == ok) {
-                printf("Timeout (%s) is not integer!\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-            printf("Timeout set to %d\r\n", timeout_ms);
-        }
-            break;
-
-        case '0':
-            startReferenceAt0 = 1;
-            break;
-            //tcp/rtu params
-        case 'p':
-        case 'b':
-        case 'd':
-        case 's':
-            if (0 == backend) {
-                printf("Connection type (-m switch) has to be set before its params are provided!\n");
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-            else {
-                if (0 == backend->setParam(backend, c, optarg)) {
-                    printUsage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            break;
-        case '?':
-            break;
-
-        default:
-            printf("?? getopt returned character code 0%o ??\n", c);
-        }
+        return 0;
     }
-
-    if (!backend) {
-        printf("No connection type was specified!\n");
-        printUsage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    if (startReferenceAt0) {
-        startAddr--;
+    /* If the parser returned any errors then display them and exit */
+    if (cmd1->count > 0)
+    {
+        if(nerrors1> 0) {
+            /* Display the error details contained in the arg_end struct.*/
+            arg_print_errors(stdout, end1, "modbus_client rtu");
+            printf("Try '%s --help' for more information.\n", "modbus_client rtu");
+            return -1;
+        } else {
+            backend = createRtuBackend((RtuBackend*)malloc(sizeof(RtuBackend)));
+            RtuBackend *rtuP = (RtuBackend*)backend;
+            rtuP->baud = baud->ival[0];
+            snprintf(rtuP->devName, sizeof(rtuP->devName), "%s", dev->sval[0]);
+            backend->setParam(backend, 'p', parity->sval[0]);
+            backend->setParam(backend, 'd', dbit->sval[0]);
+            backend->setParam(backend, 's', sbit->sval[0]);
+        }
+    } else if (cmd2->count > 0)
+    {
+        if(nerrors2 > 0) {
+            /* Display the error details contained in the arg_end struct.*/
+            arg_print_errors(stdout, end2, "modbus_client tcp");
+            printf("Try '%s --help' for more information.\n", "modbus_client tcp");
+            return -1;
+        } else {
+            backend = createTcpBackend((TcpBackend*)malloc(sizeof(TcpBackend)));
+            TcpBackend *tcpP = (TcpBackend*)backend;
+            snprintf(tcpP->ip, sizeof(tcpP->ip), "%s", ip->sval[0]);
+            tcpP->port = port->ival[0];
+        }
+    } else {
+        printf("Missing <rtu|tcp> command.\n");
+        printf("usage 1: %s ", "modbus_client");  arg_print_syntax(stdout,argtable1,"\n");
+        printf("usage 2: %s ", "modbus_client");  arg_print_syntax(stdout,argtable2,"\n");
+        return -1;
     }
 
     //choose write data type
-    switch (fType) {
+    switch (func->ival[0]) {
     case(ReadCoils):
         wDataType = Data8Array;
         break;
@@ -244,19 +194,17 @@ int main(int argc, char **argv)
         isWriteFunction = 1;
         break;
     default:
-        printf("No correct function type chosen");
-        printUsage(argv[0]);
+        printf("No correct function chosen");
         exit(EXIT_FAILURE);
     }
 
-    if (isWriteFunction && wDataType != DataInt) {
-        int dataNo = argc - optind - 1;
-        /*if (-1 != readWriteNo && dataNo != readWriteNo) {
-            printf("Write count specified, not equal to data values count!");
-            printUsage(argv[0]);
-            exit(EXIT_FAILURE);
-        }
-        else*/ readWriteNo = dataNo;
+    if (isWriteFunction) {
+        if(wDataType != DataInt)
+            readWriteNo = dwrite->count;
+        else
+            readWriteNo = 1;
+    } else {
+        readWriteNo = count->ival[0];
     }
 
     //allocate buffer for data
@@ -275,51 +223,35 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (optind < argc) {
-        /* Set device name */
-        if (Rtu == backend->type) {
-            RtuBackend *rtuP = (RtuBackend*)backend;
-            strcpy(rtuP->devName, argv[optind]);
-        }
-        else if (Tcp == backend->type) {
-            TcpBackend *tcpP = (TcpBackend*)backend;
-            strcpy(tcpP->ip, argv[optind]);
-        }
-        optind++;
-    }
-
-    int wDataIdx = 0;
-    if (debug && isWriteFunction)
-        printf("Data to write: ");
-    if (optind < argc) {
-        while (optind < argc) {
+    if (isWriteFunction) {
+        if (debug->count)
+            printf("Data to write: ");
+        for (int i = 0; i < dwrite->count; i++) {
             if (wDataType == DataInt) {
-                data.dataInt = getInt(argv[optind], 0);
-                if (debug)
+                data.dataInt = dwrite->ival[0];
+                if (debug->count)
                     printf("0x%x", data.dataInt);
                 /* only one data */
                 break;
             } else if (wDataType == Data8Array) {
-                data.data8[wDataIdx] = getInt(argv[optind], 0);
-                if (debug)
-                    printf("0x%02x ", data.data8[wDataIdx]);
+                data.data8[i] = dwrite->ival[i];
+                if (debug->count)
+                    printf("0x%02x ", data.data8[i]);
             } if (wDataType == Data16Array) {
-                data.data16[wDataIdx] = getInt(argv[optind], 0);
-                if (debug)
-                    printf("0x%04x ", data.data16[wDataIdx]);
+                data.data16[i] = dwrite->ival[i];
+                if (debug->count)
+                    printf("0x%04x ", data.data16[i]);
             }
-            wDataIdx++;
             optind++;
         }
+        if (debug->count)
+            printf("\n");
     }
-    if (debug && isWriteFunction)
-        printf("\n");
-
     //create modbus context, and preapare it
     modbus_t *ctx = backend->createCtxt(backend);
-    modbus_set_debug(ctx, debug);
-    modbus_set_slave(ctx, slaveAddr);
-    modbus_set_response_timeout(ctx, 0, timeout_ms * 1000);
+    modbus_set_debug(ctx, debug->count);
+    modbus_set_slave(ctx, addr->ival[0]);
+    modbus_set_response_timeout(ctx, 0, tout->ival[0] * 1000);
 
     //issue the request
     int ret = -1;
@@ -328,41 +260,40 @@ int main(int argc, char **argv)
                 modbus_strerror(errno));
         modbus_free(ctx);
         return -1;
-    } else {
-        switch (fType) {
-        case(ReadCoils):
-            ret = modbus_read_bits(ctx, startAddr, readWriteNo, data.data8);
-            break;
-        case(ReadDiscreteInput):
-            printf("ReadDiscreteInput: not implemented yet!\n");
-            wDataType = DataInt;
-            break;
-        case(ReadHoldingRegisters):
-            ret = modbus_read_registers(ctx, startAddr, readWriteNo, data.data16);
-            break;
-        case(ReadInputRegisters):
-            ret = modbus_read_input_registers(ctx, startAddr, readWriteNo, data.data16);
-            break;
-        case(WriteSingleCoil):
-            ret = modbus_write_bit(ctx, startAddr, data.dataInt);
-            break;
-        case(WriteSingleRegister):
-            ret = modbus_write_register(ctx, startAddr, data.dataInt);
-            break;
-        case(WriteMultipleCoils):
-            ret = modbus_write_bits(ctx, startAddr, readWriteNo, data.data8);
-            break;
-        case(WriteMultipleRegisters):
-            ret = modbus_write_registers(ctx, startAddr, readWriteNo, data.data16);
-            break;
-        default:
-            printf("No correct function type chosen");
-            printUsage(argv[0]);
-            exit(EXIT_FAILURE);
-        }
+    }
+
+    switch (func->ival[0]) {
+    case(ReadCoils):
+        ret = modbus_read_bits(ctx, reg->ival[0], readWriteNo, data.data8);
+        break;
+    case(ReadDiscreteInput):
+        printf("ReadDiscreteInput: not implemented yet!\n");
+        wDataType = DataInt;
+        break;
+    case(ReadHoldingRegisters):
+        ret = modbus_read_registers(ctx, reg->ival[0], readWriteNo, data.data16);
+        break;
+    case(ReadInputRegisters):
+        ret = modbus_read_input_registers(ctx, reg->ival[0], readWriteNo, data.data16);
+        break;
+    case(WriteSingleCoil):
+        ret = modbus_write_bit(ctx, reg->ival[0], data.dataInt);
+        break;
+    case(WriteSingleRegister):
+        ret = modbus_write_register(ctx, reg->ival[0], data.dataInt);
+        break;
+    case(WriteMultipleCoils):
+        ret = modbus_write_bits(ctx, reg->ival[0], readWriteNo, data.data8);
+        break;
+    case(WriteMultipleRegisters):
+        ret = modbus_write_registers(ctx, reg->ival[0], readWriteNo, data.data16);
+        break;
+    default:
+        break;
     }
 
     if (ret == readWriteNo) {//success
+        ret = 0;
         if (isWriteFunction)
             printf("SUCCESS: written %d elements!\n", readWriteNo);
         else {
@@ -404,5 +335,5 @@ int main(int argc, char **argv)
         break;
     }
 
-    exit(EXIT_SUCCESS);
+    exit(ret);
 }

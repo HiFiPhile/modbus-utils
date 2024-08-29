@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/modbus_client.exe",
-            "args": ["--debug","-mrtu","-t0x05","-r0","-b9600","-pnone","COM3", "-o100", "0x00","0x00"],
+            "args": ["rtu", "-a", "1", "-r", "0", "-f", "1", "-d", "COM3", "-b", "9600"],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -3,6 +3,7 @@ OUTPUT_DIR = build
 CFLAGS := -O2 -s
 
 INCLUDES := -I./libmodbus/src \
+			-I./argtable3 \
 
 LIBS := -L./libmodbus/src/.libs/ \
        -l:libmodbus.a \
@@ -14,7 +15,7 @@ endif
 all: modbus_client modbus_server
 
 modbus_client: modbus_client.c mbu-common.h | dir
-	$(CC) $(CFLAGS) modbus_client.c $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_client
+	$(CC) $(CFLAGS) modbus_client.c argtable3/argtable3.c $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_client
 
 modbus_server: modbus_server.c mbu-common.h | dir
 	$(CC) $(CFLAGS) modbus_server.c $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_server
@@ -28,6 +29,5 @@ debug: all
 
 .PHONY: clean
 
-clean: 
+clean:
 	rm -rf $(OUTPUT_DIR)/
-    
