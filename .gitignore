@@ -1,0 +1,8 @@
+*.o
+*.exe
+*.la
+*.lo
+.deps
+.libs
+*.pc
+libmodbus/config*
