@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "mingw64",
+            "includePath": [
+                "${workspaceFolder}/**",
+            ],
+            "compilerPath": "C:/msys64/mingw64/bin/gcc.exe"
+        },
+        {
+            "name": "linux",
+            "includePath": [
+                "/usr/include",
+                "${workspaceFolder}/**",
+            ],
+            "compilerPath": "/usr/bin/gcc"
+        }
+    ],
+    "version": 4
+}
