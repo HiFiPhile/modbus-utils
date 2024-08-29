@@ -8,26 +8,33 @@ INCLUDES := -I./libmodbus/src \
 LIBS := -L./libmodbus/src/.libs/ \
        -l:libmodbus.a \
 
+SRC_CLIENT := modbus_client.c
+
+SRC_SERVER := modbus_server.c
+
+SRC_COMMMON := argtable3/argtable3.c
+
 ifeq ($(MSYSTEM),MINGW64)
 	LIBS += -lws2_32
 endif
 
-all: modbus_client modbus_server
+all: $(OUTPUT_DIR)/modbus_client $(OUTPUT_DIR)/modbus_server
 
-modbus_client: modbus_client.c mbu-common.h | dir
-	$(CC) $(CFLAGS) modbus_client.c argtable3/argtable3.c $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_client
+$(OUTPUT_DIR)/modbus_client: $(SRC_CLIENT) | $(OUTPUT_DIR)/.out
+	$(CC) $(CFLAGS) $(SRC_CLIENT) $(SRC_COMMMON) $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_client
 
-modbus_server: modbus_server.c mbu-common.h | dir
-	$(CC) $(CFLAGS) modbus_server.c $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_server
+$(OUTPUT_DIR)/modbus_server: $(SRC_SERVER) | $(OUTPUT_DIR)/.out
+	$(CC) $(CFLAGS) $(SRC_SERVER) $(SRC_COMMMON) $(INCLUDES) $(LIBS) -o $(OUTPUT_DIR)/modbus_server
 
-dir:
+$(OUTPUT_DIR)/.out:
 	mkdir -p $(OUTPUT_DIR)
+	touch $(OUTPUT_DIR)/.out
 
 debug: CFLAGS += -g
 debug: CFLAGS := $(filter-out -s, $(CFLAGS))
 debug: all
 
-.PHONY: clean
+.PHONY: all clean
 
 clean:
 	rm -rf $(OUTPUT_DIR)/
