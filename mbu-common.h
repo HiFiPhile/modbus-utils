@@ -65,7 +65,7 @@ typedef struct {
 
 typedef struct {
     BackendParams base;
-    char devName[32];
+    char devName[255];
     int baud;
     int dataBits;
     int stopBits;
