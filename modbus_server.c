@@ -37,6 +37,8 @@
 #include <errno.h>
 #include <signal.h>
 
+#include <argtable3.h>
+
 #include "mbu-common.h"
 
 #if defined(_WIN32)
@@ -66,194 +68,110 @@ static void close_sigint(int dummy)
     exit(dummy);
 }
 
-const char DebugOpt[]   = "debug";
-const char TcpOptVal[]  = "tcp";
-const char RtuOptVal[]  = "rtu";
-const char DiscreteInputsNo[] = "di";
-const char CoilsNo[] = "co";
-const char InputRegistersNo[] = "ir";
-const char HoldingRegistersNo[] = "hr";
-
-void printUsage(const char progName[]) {
-    printf("%s [--%s] -m{tcp|rtu}\n\t" \
-           "[-a<slave-addr=1>] --%s<discrete-inputs-no>=100 --%s<coils-no>=100 --%s<input-registers-no>=100 --%s<holding-registers-no>=100\n\t" \
-           "[{rtu-params|tcp-params}]\n", progName, DebugOpt, DiscreteInputsNo, CoilsNo, InputRegistersNo, HoldingRegistersNo);           
-    printf("rtu-params:\n" \
-           "\tb<baud-rate>=9600\n" \
-           "\td{7|8}<data-bits>=8\n" \
-           "\ts{1|2}<stop-bits>=1\n" \
-           "\tp{none|even|odd}=even\n");
-    printf("tcp-params:\n" \
-           "\tp<port>=502\n");
-}
-
 int main(int argc, char **argv)
 {
     int c;
     int ok;
     int rc;
 
-    BackendParams *backend = 0;
-    int slaveAddr = 1;
-    int debug = 0;
-    int diNo = 100;
-    int coilsNo = 100;
-    int irNo = 100;
-    int hrNo = 100;
+    struct arg_int *addr   = arg_int0("a", "addr",              "<n>=1",                                "Slave address");
+    struct arg_int *co     = arg_int0(NULL,"co",                "<n>=100",                              "Coils");
+    struct arg_int *di     = arg_int0(NULL,"di",                "<n>=100",                              "Discrete inputs");
+    struct arg_int *hr     = arg_int0(NULL,"hr",                "<n>=100",                              "Holding registers");
+    struct arg_int *ir     = arg_int0(NULL,"ir",                "<n>=100",                              "Input registers");
+    struct arg_lit *debug  = arg_lit0("v", "verbose",                                                   "Enable verbpse output");
+    struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
+    /* RTU */
+    struct arg_rex *rtu    = arg_rex1(NULL, NULL,   "RTU",      NULL,                   ARG_REX_ICASE,  NULL);
+    struct arg_str *dev    = arg_str1("d", "dev",               "<device>",                             "Serial device");
+    struct arg_int *baud   = arg_int1("b", "baud",              "<n>",                                  "Baud rate");
+    struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "7|8",  "<7|8>=8",             ARG_REX_ICASE,  "Data bits");
+    struct arg_rex *sbit   = arg_rex0(NULL, "stop-bits", "1|2",  "<1|2>=1",             ARG_REX_ICASE,  "Stop bits");
+    struct arg_rex *parity = arg_rex0("p", "parity", "N|E|O",
+                                                                "<N|E|O>=E", ARG_REX_ICASE,  "Parity");
+    struct arg_end *end1    = arg_end(20);
+    /* TCP */
+    struct arg_rex *tcp    = arg_rex1(NULL, NULL,   "TCP",      NULL, ARG_REX_ICASE,                    NULL);
+    struct arg_int *port   = arg_int0("p", "port",              "<port>=502",                           "Socket listening port");
+    struct arg_rex *ip     = arg_rex0("i", "addr", "^([0-9]{1,3}\\.){3}([0-9]{1,3})$",
+                                                                "<IP>=127.0.0.1",       ARG_REX_ICASE,  "Device IP address");
+    struct arg_end *end2    = arg_end(20);
 
-    while (1) {
-        int option_index = 0;
-        static struct option long_options[] = {
-            {DebugOpt,  no_argument, 0,  0},
-            {DiscreteInputsNo, required_argument, 0, 0},
-            {CoilsNo, required_argument, 0, 0},
-            {InputRegistersNo, required_argument, 0, 0},
-            {HoldingRegistersNo, required_argument, 0, 0},
-            {0, 0,  0,  0}
-        };
+    void* argtable1[] = {rtu, addr, co, di, hr, ir, dev, baud, dbit, sbit, parity, debug, help, end1};
 
-        c = getopt_long(argc, argv, "a:b:d:m:s:p:",
-                        long_options, &option_index);
-        if (c == -1) {
-            break;
+    void* argtable2[] = {tcp, addr, co, di, hr, ir, port, ip, debug, help, end2};
+
+    /* defaults */
+    addr->ival[0] = 1;
+    co->ival[0] = 100;
+    di->ival[0] = 100;
+    hr->ival[0] = 100;
+    ir->ival[0] = 100;
+
+    int nerrors1 = arg_parse(argc,argv,argtable1);
+    int nerrors2 = arg_parse(argc,argv,argtable2);
+    /* special case: '--help' takes precedence over error reporting */
+    if (help->count > 0)
+    {
+        printf("Modbus server utils.\n\n");
+        if (rtu->count) {
+            arg_print_syntax(stdout, argtable1, "\n");
+            arg_print_glossary(stdout, argtable1, "  %-30s %s\n");
+        } else if (tcp->count) {
+            arg_print_syntax(stdout, argtable2, "\n");
+            arg_print_glossary(stdout, argtable2, "  %-30s %s\n");
+        } else {
+            printf("Missing <rtu|tcp> command.\n");
         }
-
-        switch (c) {
-        case 0:
-            if (0 == strcmp(long_options[option_index].name, DebugOpt)) {
-                debug = 1;
-            }
-            else if (0 == strcmp(long_options[option_index].name, DiscreteInputsNo)) {
-                diNo = getInt(optarg, &ok);
-                if (0 == ok || diNo < 0) {
-                    printf("Cannot set discrete inputs no from %s", optarg);
-                    printUsage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            else if (0 == strcmp(long_options[option_index].name, CoilsNo)) {
-                coilsNo = getInt(optarg, &ok);
-                if (0 == ok || coilsNo < 0) {                
-                    printf("Cannot set discrete coils no from %s", optarg);
-                    printUsage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            else if (0 == strcmp(long_options[option_index].name, InputRegistersNo)) {
-                irNo = getInt(optarg, &ok);
-                if (0 == ok || irNo < 0) {
-                    printf("Cannot set input registers no from %s", optarg);
-                    printUsage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            else if (0 == strcmp(long_options[option_index].name, HoldingRegistersNo)) {
-                hrNo = getInt(optarg, &ok);
-                if (0 == ok || hrNo < 0) {
-                    printf("Cannot set holding registers no from %s\n", optarg);
-                    printUsage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-            }
-
-            break;
-
-        case 'a': {
-            slaveAddr = getInt(optarg, &ok);
-            if (0 == ok) {
-                printf("Slave address (%s) is not integer!\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-        }
-            break;
-
-        case 'm':
-            if (0 == strcmp(optarg, TcpOptVal)) {
-                backend = createTcpBackend();
-            }
-            else if (0 == strcmp(optarg, RtuOptVal))
-                backend = createRtuBackend();
-            else {
-                printf("Unrecognized connection type %s\n\n", optarg);
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-            //tcp/rtu params
-        case 'p':
-        case 'b':
-        case 'd':
-        case 's':
-            if (0 == backend) {
-                printf("Connection type (-m switch) has to be set before its params are provided!\n");
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-            else {
-                if (0 == backend->setParam(backend, c, optarg)) {
-                    printUsage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            break;
-        case '?':
-            break;
-
-        default:
-            printf("?? getopt returned character code 0%o ??\n", c);
-        }
+        return 0;
     }
-
-    if (0 == backend) {
-        printf("No connection type was specified!\n");
-        printUsage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    if (1 == argc - optind) {
-        if (Rtu == backend->type) {
-            RtuBackend *rtuP = (RtuBackend*)backend;
-            strcpy(rtuP->devName, argv[optind]);
+    /* If the parser returned any errors then display them and exit */
+    if (rtu->count > 0)
+    {
+        if(nerrors1> 0) {
+            /* Display the error details contained in the arg_end struct.*/
+            arg_print_errors(stdout, end1, "modbus_server rtu");
+            printf("Try '%s --help' for more information.\n", "modbus_server rtu");
+            return -1;
+        } else {
+            ctx = modbus_new_rtu(dev->sval[0],
+                baud->ival[0], toupper(parity->sval[0][0]), getInt(dbit->sval[0], 0), getInt(sbit->sval[0], 0));
         }
-        else if (Tcp == backend->type) {
-            TcpBackend *tcpP = (TcpBackend*)backend;
-            strcpy(tcpP->ip, argv[optind]);
+    } else if (tcp->count > 0)
+    {
+        if(nerrors2 > 0) {
+            /* Display the error details contained in the arg_end struct.*/
+            arg_print_errors(stdout, end2, "modbus_server tcp");
+            printf("Try '%s --help' for more information.\n", "modbus_server tcp");
+            return -1;
+        } else {
+            ctx = modbus_new_tcp(ip->sval[0], port->ival[0]);
         }
-    }
-    else {
-        printf("Expecting only serialport|ip as free parameter!\n");
-        printUsage(argv[0]);
-        exit(EXIT_FAILURE);
+    } else {
+        printf("Missing <rtu|tcp> command.\n");
+        printf("usage 1: %s ", "modbus_server");  arg_print_syntax(stdout,argtable1,"\n");
+        printf("usage 2: %s ", "modbus_server");  arg_print_syntax(stdout,argtable2,"\n");
+        return -1;
     }
 
     //prepare mapping
-    mb_mapping = modbus_mapping_new(coilsNo, diNo, hrNo, irNo);
+    mb_mapping = modbus_mapping_new(co->ival[0], di->ival[0], hr->ival[0], ir->ival[0]);
     if (mb_mapping == NULL) {
         fprintf(stderr, "Failed to allocate the mapping: %s\n",
                 modbus_strerror(errno));
         exit(EXIT_FAILURE);
     }
-    if (debug)
+    if (debug->count)
         printf("Ranges: \n \tCoils: 0-0x%04x\n\tDigital inputs: 0-0x%04x\n\tHolding registers: 0-0x%04x\n\tInput registers: 0-0x%04x\n",
-               coilsNo, diNo, hrNo, irNo);
+               co->ival[0], di->ival[0], hr->ival[0], ir->ival[0]);
 
-    if (0 == backend) {
-        printf("No backend has been specified!\n");
-        printUsage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
+    modbus_set_debug(ctx, debug->count);
+    modbus_set_slave(ctx, addr->ival[0]);
 
-    ctx = backend->createCtxt(backend);
-    modbus_set_debug(ctx, debug);
-    modbus_set_slave(ctx, slaveAddr);
-
-    if (Rtu == backend->type) {
-
+    if (rtu->count > 0) {
         for(;;) {
 
-            if (0 == backend->listenForConnection(backend, ctx)) {
+            if (modbus_connect(ctx)) {
                 break;
             }
 
@@ -270,12 +188,8 @@ int main(int argc, char **argv)
                 }
             }
             printf("Client disconnected: %s\n", modbus_strerror(errno));
-
-            backend->closeConnection(backend);
         }
-
-    }
-    else if (Tcp == backend->type) {
+    } else {
         uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
         int master_socket;
         fd_set refset;
@@ -363,7 +277,6 @@ int main(int argc, char **argv)
     modbus_mapping_free(mb_mapping);
     modbus_close(ctx);
     modbus_free(ctx);
-    backend->del(backend);
 
     return 0;
 }

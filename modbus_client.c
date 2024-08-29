@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     struct arg_lit *debug  = arg_lit0("v", "verbose",                                                   "Enable verbpse output");
     struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
     /* RTU */
-    struct arg_rex *cmd1   = arg_rex1(NULL, NULL,   "RTU",      NULL,                   ARG_REX_ICASE,  NULL);
+    struct arg_rex *rtu    = arg_rex1(NULL, NULL,   "RTU",      NULL,                   ARG_REX_ICASE,  NULL);
     struct arg_str *dev    = arg_str1("d", "dev",               "<device>",                             "Serial device");
     struct arg_int *baud   = arg_int1("b", "baud",              "<n>",                                  "Baud rate");
     struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "7|8",  "<7|8>=8",             ARG_REX_ICASE,  "Data bits");
@@ -92,16 +92,16 @@ int main(int argc, char **argv)
                                                                 "<N|E|O>=E", ARG_REX_ICASE,  "Parity");
     struct arg_end *end1    = arg_end(20);
     /* TCP */
-    struct arg_rex *cmd2   = arg_rex1(NULL, NULL,   "TCP",      NULL, ARG_REX_ICASE,                    NULL);
+    struct arg_rex *tcp    = arg_rex1(NULL, NULL,   "TCP",      NULL, ARG_REX_ICASE,                    NULL);
     struct arg_int *port   = arg_int0("p", "port",              "<port>=502",                           "Socket listening port");
     struct arg_rex *ip     = arg_rex0("i", "addr", "^([0-9]{1,3}\\.){3}([0-9]{1,3})$",
                                                                 "<IP>=127.0.0.1",       ARG_REX_ICASE,  "Device IP address");
     struct arg_end *end2    = arg_end(20);
 
-    void* argtable1[] = {cmd1, addr, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
+    void* argtable1[] = {rtu, addr, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
                             dev, baud, dbit, sbit, parity, dwrite, count, tout, debug, help, end1};
 
-    void* argtable2[] = {cmd2, addr, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
+    void* argtable2[] = {tcp, addr, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
                             port, ip, dwrite, count, tout, debug, help, end2};
 
     /* defaults */
@@ -119,19 +119,19 @@ int main(int argc, char **argv)
     if (help->count > 0)
     {
         printf("Modbus client utils.\n\n");
-        if (cmd1->count) {
+        if (rtu->count) {
             arg_print_syntax(stdout, argtable1, "\n");
-            arg_print_glossary(stdout, argtable1, "  %-25s %s\n");
-        } else if (cmd2->count) {
+            arg_print_glossary(stdout, argtable1, "  %-30s %s\n");
+        } else if (tcp->count) {
             arg_print_syntax(stdout, argtable2, "\n");
-            arg_print_glossary(stdout, argtable2, "  %-25s %s\n");
+            arg_print_glossary(stdout, argtable2, "  %-30s %s\n");
         } else {
             printf("Missing <rtu|tcp> command.\n");
         }
         return 0;
     }
     /* If the parser returned any errors then display them and exit */
-    if (cmd1->count > 0)
+    if (rtu->count > 0)
     {
         if(nerrors1> 0) {
             /* Display the error details contained in the arg_end struct.*/
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
             ctx = modbus_new_rtu(dev->sval[0],
                 baud->ival[0], toupper(parity->sval[0][0]), getInt(dbit->sval[0], 0), getInt(sbit->sval[0], 0));
         }
-    } else if (cmd2->count > 0)
+    } else if (tcp->count > 0)
     {
         if(nerrors2 > 0) {
             /* Display the error details contained in the arg_end struct.*/
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
 
     //issue the request
     int ret = -1;
-    if (modbus_connect(ctx) == -1) {
+    if (modbus_connect(ctx)) {
         fprintf(stderr, "Connection failed: %s\n",
                 modbus_strerror(errno));
         modbus_free(ctx);
