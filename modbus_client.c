@@ -83,7 +83,6 @@ int main(int argc, char **argv)
     int readWriteNo = 1;
     int fType = FuncNone;
     int timeout_ms = 1000;
-    int hasDevice = 0;
 
     int isWriteFunction = 0;
     enum WriteDataType {
@@ -209,13 +208,13 @@ int main(int argc, char **argv)
         }
     }
 
-    if (0 == backend) {
+    if (!backend) {
         printf("No connection type was specified!\n");
         printUsage(argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    if (1 == startReferenceAt0) {
+    if (startReferenceAt0) {
         startAddr--;
     }
 
@@ -250,7 +249,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (isWriteFunction) {
+    if (isWriteFunction && wDataType != DataInt) {
         int dataNo = argc - optind - 1;
         /*if (-1 != readWriteNo && dataNo != readWriteNo) {
             printf("Write count specified, not equal to data values count!");
@@ -276,51 +275,44 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    if (optind < argc) {
+        /* Set device name */
+        if (Rtu == backend->type) {
+            RtuBackend *rtuP = (RtuBackend*)backend;
+            strcpy(rtuP->devName, argv[optind]);
+        }
+        else if (Tcp == backend->type) {
+            TcpBackend *tcpP = (TcpBackend*)backend;
+            strcpy(tcpP->ip, argv[optind]);
+        }
+        optind++;
+    }
+
     int wDataIdx = 0;
-    if (1 == debug && 1 == isWriteFunction)
+    if (debug && isWriteFunction)
         printf("Data to write: ");
     if (optind < argc) {
         while (optind < argc) {
-            if (0 == hasDevice) {
-                if (0 != backend) {
-                    if (Rtu == backend->type) {
-                        RtuBackend *rtuP = (RtuBackend*)backend;
-                        strcpy(rtuP->devName, argv[optind]);
-                        hasDevice = 1;
-                    }
-                    else if (Tcp == backend->type) {
-                        TcpBackend *tcpP = (TcpBackend*)backend;
-                        strcpy(tcpP->ip, argv[optind]);
-                        hasDevice = 1;
-                    }
-                }
+            if (wDataType == DataInt) {
+                data.dataInt = getInt(argv[optind], 0);
+                if (debug)
+                    printf("0x%x", data.dataInt);
+                /* only one data */
+                break;
+            } else if (wDataType == Data8Array) {
+                data.data8[wDataIdx] = getInt(argv[optind], 0);
+                if (debug)
+                    printf("0x%02x ", data.data8[wDataIdx]);
+            } if (wDataType == Data16Array) {
+                data.data16[wDataIdx] = getInt(argv[optind], 0);
+                if (debug)
+                    printf("0x%04x ", data.data16[wDataIdx]);
             }
-            else {//setting write data buffer
-                switch (wDataType) {
-                case (DataInt):
-                    data.dataInt = getInt(argv[optind], 0);
-                    if (debug)
-                        printf("0x%x", data.dataInt);
-                    break;
-                case (Data8Array): {
-                    data.data8[wDataIdx] = getInt(argv[optind], 0);
-                    if (debug)
-                        printf("0x%02x ", data.data8[wDataIdx]);
-                }
-                    break;
-                case (Data16Array): {
-                    data.data16[wDataIdx] = getInt(argv[optind], 0);
-                    if (debug)
-                        printf("0x%04x ", data.data16[wDataIdx]);
-                }
-                    break;
-                }
-                wDataIdx++;
-            }
+            wDataIdx++;
             optind++;
         }
     }
-    if (1 == debug && 1 == isWriteFunction)
+    if (debug && isWriteFunction)
         printf("\n");
 
     //create modbus context, and preapare it
