@@ -51,11 +51,10 @@ int main(int argc, char **argv)
 {
     int c;
     int ok;
-
-    BackendParams *backend = 0;
     int readWriteNo = 1;
-
     int isWriteFunction = 0;
+    modbus_t *ctx;
+
     enum WriteDataType {
         DataInt,
         Data8Array,
@@ -78,7 +77,7 @@ int main(int argc, char **argv)
     struct arg_rem *func6  = arg_rem("",                                                                "0x06 : Write Single Register");
     struct arg_rem *func7  = arg_rem("",                                                                "0x0F : Write Multiple Coils");
     struct arg_rem *func8  = arg_rem("",                                                                "0x10 : Write Multiple registers");
-    struct arg_int *dwrite = arg_intn("w", "write",             "<n..>", 0, 123,                        "Data to write");
+    struct arg_int *dwrite = arg_intn("w", "write",             "<n>", 0, 123,                          "Data to write");
     struct arg_int *count  = arg_int0("c", "count",             "<unit>",                               "Data read count");
     struct arg_int *tout   = arg_int0("o", "timeout",           "<ms>",                                 "Request timeout");
     struct arg_lit *debug  = arg_lit0("v", "verbose",                                                   "Enable verbpse output");
@@ -89,8 +88,8 @@ int main(int argc, char **argv)
     struct arg_int *baud   = arg_int1("b", "baud",              "<n>",                                  "Baud rate");
     struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "7|8",  "<7|8>=8",             ARG_REX_ICASE,  "Data bits");
     struct arg_rex *sbit   = arg_rex0(NULL, "stop-bits", "1|2",  "<1|2>=1",             ARG_REX_ICASE,  "Stop bits");
-    struct arg_rex *parity = arg_rex0("p", "parity", "none|even|odd",
-                                                                "<none|even|odd>=even", ARG_REX_ICASE,  "Parity");
+    struct arg_rex *parity = arg_rex0("p", "parity", "N|E|O",
+                                                                "<N|E|O>=E", ARG_REX_ICASE,  "Parity");
     struct arg_end *end1    = arg_end(20);
     /* TCP */
     struct arg_rex *cmd2   = arg_rex1(NULL, NULL,   "TCP",      NULL, ARG_REX_ICASE,                    NULL);
@@ -110,7 +109,7 @@ int main(int argc, char **argv)
     tout->ival[0]       = 1000;
     dbit->sval[0]       = "8";
     sbit->sval[0]       = "1";
-    parity->sval[0]     = "even";
+    parity->sval[0]     = "E";
     port->ival[0]       = 502;
     ip->sval[0]         = "127.0.0.1";
 
@@ -140,13 +139,8 @@ int main(int argc, char **argv)
             printf("Try '%s --help' for more information.\n", "modbus_client rtu");
             return -1;
         } else {
-            backend = createRtuBackend((RtuBackend*)malloc(sizeof(RtuBackend)));
-            RtuBackend *rtuP = (RtuBackend*)backend;
-            rtuP->baud = baud->ival[0];
-            snprintf(rtuP->devName, sizeof(rtuP->devName), "%s", dev->sval[0]);
-            backend->setParam(backend, 'p', parity->sval[0]);
-            backend->setParam(backend, 'd', dbit->sval[0]);
-            backend->setParam(backend, 's', sbit->sval[0]);
+            ctx = modbus_new_rtu(dev->sval[0],
+                baud->ival[0], toupper(parity->sval[0][0]), getInt(dbit->sval[0], 0), getInt(sbit->sval[0], 0));
         }
     } else if (cmd2->count > 0)
     {
@@ -156,10 +150,7 @@ int main(int argc, char **argv)
             printf("Try '%s --help' for more information.\n", "modbus_client tcp");
             return -1;
         } else {
-            backend = createTcpBackend((TcpBackend*)malloc(sizeof(TcpBackend)));
-            TcpBackend *tcpP = (TcpBackend*)backend;
-            snprintf(tcpP->ip, sizeof(tcpP->ip), "%s", ip->sval[0]);
-            tcpP->port = port->ival[0];
+            ctx = modbus_new_tcp(ip->sval[0], port->ival[0]);
         }
     } else {
         printf("Missing <rtu|tcp> command.\n");
@@ -242,13 +233,11 @@ int main(int argc, char **argv)
                 if (debug->count)
                     printf("0x%04x ", data.data16[i]);
             }
-            optind++;
         }
         if (debug->count)
             printf("\n");
     }
-    //create modbus context, and preapare it
-    modbus_t *ctx = backend->createCtxt(backend);
+
     modbus_set_debug(ctx, debug->count);
     modbus_set_slave(ctx, addr->ival[0]);
     modbus_set_response_timeout(ctx, 0, tout->ival[0] * 1000);
@@ -321,7 +310,6 @@ int main(int argc, char **argv)
     //cleanup
     modbus_close(ctx);
     modbus_free(ctx);
-    backend->del(backend);
 
     switch (wDataType) {
     case (DataInt):
