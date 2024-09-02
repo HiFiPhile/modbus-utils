@@ -27,6 +27,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 int getInt(const char str[], int *ok) {
     int value;

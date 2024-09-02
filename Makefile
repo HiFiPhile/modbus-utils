@@ -1,6 +1,6 @@
 OUTPUT_DIR = build
 
-CFLAGS := -O2 -s
+CFLAGS := -O2 -s -std=gnu99
 
 INCLUDES := -I./libmodbus/src \
 			-I./argtable3 \
@@ -13,7 +13,8 @@ SRC_COMMMON := argtable3/argtable3.c
 
 LIB_MODBUS := ./libmodbus/src/.libs/libmodbus.a
 
-LIBS = $(LIB_MODBUS)
+LIBS = $(LIB_MODBUS) \
+	   -lm
 
 ifeq ($(MSYSTEM),MINGW64)
 	LIBS += -lws2_32
@@ -32,7 +33,7 @@ $(OUTPUT_DIR)/.out:
 	touch $(OUTPUT_DIR)/.out
 
 $(LIB_MODBUS):
-	pushd libmodbus/ && ./configure --enable-static
+	pushd libmodbus/ && ./configure --enable-static $(CONF_OPT)
 	+$(MAKE) --directory=libmodbus/src/
 
 debug: CFLAGS += -g
