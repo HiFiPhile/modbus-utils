@@ -36,6 +36,8 @@
 
 #include "mbu-common.h"
 
+#define PROGMANE "modbusc"
+
 typedef enum {
     FuncNone =          -1,
     ReadCoils           = 0x01,
@@ -96,7 +98,7 @@ int main(int argc, char **argv)
     struct arg_lit *debug  = arg_litn("v", "verbose",                      0, 2,                        "Enable verbpse output");
     struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
     /* RTU */
-    struct arg_rex *rtu    = arg_rex1(NULL, NULL,        "^RTU$",   NULL,               ARG_REX_ICASE,  NULL);
+    struct arg_rex *rtu    = arg_rex1(NULL, NULL,        "rtu",   NULL,               ARG_REX_ICASE,  NULL);
     struct arg_str *dev    = arg_str1("d", "dev",                   "<device>",                         "Serial device");
     struct arg_int *baud   = arg_intn("b", "baud",                  "<n>", 1, 16,                       "Baud rate");
     struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "^7$|^8$", "<7|8>=8",          ARG_REX_ICASE,  "Data bits");
@@ -105,7 +107,7 @@ int main(int argc, char **argv)
                                                                     "<N|E|O>=E", 0, 3,  ARG_REX_ICASE,  "Parity");
     struct arg_end *end1    = arg_end(20);
     /* TCP */
-    struct arg_rex *tcp    = arg_rex1(NULL, NULL,        "^TCP$",   NULL,               ARG_REX_ICASE,  NULL);
+    struct arg_rex *tcp    = arg_rex1(NULL, NULL,        "tcp",   NULL,               ARG_REX_ICASE,  NULL);
     struct arg_int *port   = arg_int0("p", "port",                  "<port>=502",                       "Socket listening port");
     struct arg_rex *ip     = arg_rex0("i", "addr", "^([0-9]{1,3}\\.){3}([0-9]{1,3})$",
                                                                     "<IP>=127.0.0.1",   ARG_REX_ICASE,  "Device IP address");
@@ -152,21 +154,21 @@ int main(int argc, char **argv)
     if (rtu->count) {
         if(nerrors1) {
             /* Display the error details contained in the arg_end struct.*/
-            arg_print_errors(stdout, end1, "modbus_client rtu");
-            printf("Try '%s --help' for more information.\n", "modbus_client rtu");
+            arg_print_errors(stdout, end1, PROGMANE" rtu");
+            printf("Try '%s --help' for more information.\n", PROGMANE" rtu");
             exit(EXIT_FAILURE);
         }
     } else if (tcp->count) {
         if(nerrors2) {
             /* Display the error details contained in the arg_end struct.*/
-            arg_print_errors(stdout, end2, "modbus_client tcp");
-            printf("Try '%s --help' for more information.\n", "modbus_client tcp");
+            arg_print_errors(stdout, end2, PROGMANE" tcp");
+            printf("Try '%s --help' for more information.\n", PROGMANE" tcp");
             exit(EXIT_FAILURE);
         }
     } else {
         printf("Missing <rtu|tcp> command.\n");
-        printf("usage 1: %s ", "modbus_client");  arg_print_syntax(stdout,argtable1,"\n");
-        printf("usage 2: %s ", "modbus_client");  arg_print_syntax(stdout,argtable2,"\n");
+        printf("usage 1: %s ", PROGMANE);  arg_print_syntax(stdout,argtable1,"\n");
+        printf("usage 2: %s ", PROGMANE);  arg_print_syntax(stdout,argtable2,"\n");
         exit(EXIT_FAILURE);
     }
 
@@ -186,7 +188,7 @@ int main(int argc, char **argv)
     }
 
     if(addrScan && addrStart >= addrEnd) {
-        printf("%s:Scan ending address must be bigger than starting address.\n", "modbus_client");
+        printf("%s:Scan ending address must be bigger than starting address.\n", PROGMANE);
         exit(EXIT_FAILURE);
     }
 

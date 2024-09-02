@@ -51,6 +51,7 @@
 #include <arpa/inet.h>
 #endif
 
+#define PROGMANE "modbuss"
 #define NB_CONNECTION    10
 
 static modbus_t *ctx = NULL;
@@ -83,7 +84,7 @@ int main(int argc, char **argv)
     struct arg_lit *debug  = arg_lit0("v", "verbose",                                                   "Enable verbpse output");
     struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
     /* RTU */
-    struct arg_rex *rtu    = arg_rex1(NULL, NULL,   "RTU",      NULL,                   ARG_REX_ICASE,  NULL);
+    struct arg_rex *rtu    = arg_rex1(NULL, NULL,   "rtu",      NULL,                   ARG_REX_ICASE,  NULL);
     struct arg_str *dev    = arg_str1("d", "dev",               "<device>",                             "Serial device");
     struct arg_int *baud   = arg_int1("b", "baud",              "<n>",                                  "Baud rate");
     struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "7|8",  "<7|8>=8",             ARG_REX_ICASE,  "Data bits");
@@ -92,7 +93,7 @@ int main(int argc, char **argv)
                                                                 "<N|E|O>=E", ARG_REX_ICASE,  "Parity");
     struct arg_end *end1    = arg_end(20);
     /* TCP */
-    struct arg_rex *tcp    = arg_rex1(NULL, NULL,   "TCP",      NULL, ARG_REX_ICASE,                    NULL);
+    struct arg_rex *tcp    = arg_rex1(NULL, NULL,   "tcp",      NULL, ARG_REX_ICASE,                    NULL);
     struct arg_int *port   = arg_int0("p", "port",              "<port>=502",                           "Socket listening port");
     struct arg_rex *ip     = arg_rex0("i", "addr", "^([0-9]{1,3}\\.){3}([0-9]{1,3})$",
                                                                 "<IP>=127.0.0.1",       ARG_REX_ICASE,  "Device IP address");
@@ -129,8 +130,8 @@ int main(int argc, char **argv)
     if (rtu->count) {
         if(nerrors1) {
             /* Display the error details contained in the arg_end struct.*/
-            arg_print_errors(stdout, end1, "modbus_server rtu");
-            printf("Try '%s --help' for more information.\n", "modbus_server rtu");
+            arg_print_errors(stdout, end1, PROGMANE" rtu");
+            printf("Try '%s --help' for more information.\n", PROGMANE" rtu");
             return -1;
         } else {
             ctx = modbus_new_rtu(dev->sval[0],
@@ -139,16 +140,16 @@ int main(int argc, char **argv)
     } else if (tcp->count) {
         if(nerrors2) {
             /* Display the error details contained in the arg_end struct.*/
-            arg_print_errors(stdout, end2, "modbus_server tcp");
-            printf("Try '%s --help' for more information.\n", "modbus_server tcp");
+            arg_print_errors(stdout, end2, PROGMANE" tcp");
+            printf("Try '%s --help' for more information.\n", PROGMANE" tcp");
             return -1;
         } else {
             ctx = modbus_new_tcp(ip->sval[0], port->ival[0]);
         }
     } else {
         printf("Missing <rtu|tcp> command.\n");
-        printf("usage 1: %s ", "modbus_server");  arg_print_syntax(stdout,argtable1,"\n");
-        printf("usage 2: %s ", "modbus_server");  arg_print_syntax(stdout,argtable2,"\n");
+        printf("usage 1: %s ", PROGMANE);  arg_print_syntax(stdout,argtable1,"\n");
+        printf("usage 2: %s ", PROGMANE);  arg_print_syntax(stdout,argtable2,"\n");
         return -1;
     }
 
