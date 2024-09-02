@@ -2,6 +2,7 @@
 *  MIT License
 
 *  Copyright (c) 2013  Krzysztow
+*  Copyright (c) 2024  Zixun LI
 
 *  Permission is hereby granted, free of charge, to any person obtaining a copy
 *  of this software and associated documentation files (the "Software"), to deal
@@ -111,8 +112,7 @@ int main(int argc, char **argv)
     int nerrors1 = arg_parse(argc,argv,argtable1);
     int nerrors2 = arg_parse(argc,argv,argtable2);
     /* special case: '--help' takes precedence over error reporting */
-    if (help->count > 0)
-    {
+    if (help->count) {
         printf("Modbus server utils.\n\n");
         if (rtu->count) {
             arg_print_syntax(stdout, argtable1, "\n");
@@ -126,9 +126,8 @@ int main(int argc, char **argv)
         return 0;
     }
     /* If the parser returned any errors then display them and exit */
-    if (rtu->count > 0)
-    {
-        if(nerrors1> 0) {
+    if (rtu->count) {
+        if(nerrors1) {
             /* Display the error details contained in the arg_end struct.*/
             arg_print_errors(stdout, end1, "modbus_server rtu");
             printf("Try '%s --help' for more information.\n", "modbus_server rtu");
@@ -137,9 +136,8 @@ int main(int argc, char **argv)
             ctx = modbus_new_rtu(dev->sval[0],
                 baud->ival[0], toupper(parity->sval[0][0]), getInt(dbit->sval[0], 0), getInt(sbit->sval[0], 0));
         }
-    } else if (tcp->count > 0)
-    {
-        if(nerrors2 > 0) {
+    } else if (tcp->count) {
+        if(nerrors2) {
             /* Display the error details contained in the arg_end struct.*/
             arg_print_errors(stdout, end2, "modbus_server tcp");
             printf("Try '%s --help' for more information.\n", "modbus_server tcp");
@@ -168,7 +166,7 @@ int main(int argc, char **argv)
     modbus_set_debug(ctx, debug->count);
     modbus_set_slave(ctx, addr->ival[0]);
 
-    if (rtu->count > 0) {
+    if (rtu->count) {
         for(;;) {
 
             if (modbus_connect(ctx)) {

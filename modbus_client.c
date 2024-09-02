@@ -2,6 +2,7 @@
 *  MIT License
 
 *  Copyright (c) 2013  Krzysztow
+*  Copyright (c) 2024  Zixun LI
 
 *  Permission is hereby granted, free of charge, to any person obtaining a copy
 *  of this software and associated documentation files (the "Software"), to deal
@@ -89,8 +90,9 @@ int main(int argc, char **argv)
     struct arg_rem *func7  = arg_rem("",                                                                "    0x0F : Write Multiple Coils");
     struct arg_rem *func8  = arg_rem("",                                                                "    0x10 : Write Multiple registers");
     struct arg_int *dwrite = arg_intn("w", "write",                 "<n>", 0, 123,                      "Data to write");
-    struct arg_int *count  = arg_int0("c", "count",                 "<unit>",                           "Data read count");
+    struct arg_int *count  = arg_int0("c", "count",                 "<reg>",                            "Data read count");
     struct arg_int *tout   = arg_int0("o", "timeout",               "<ms>",                             "Request timeout");
+    struct arg_lit *base1  = arg_lit0("1", "base-1",                                                    "Base 1 addressing");
     struct arg_lit *debug  = arg_litn("v", "verbose",                      0, 2,                        "Enable verbpse output");
     struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
     /* RTU */
@@ -100,7 +102,7 @@ int main(int argc, char **argv)
     struct arg_rex *dbit   = arg_rex0(NULL, "data-bits", "^7$|^8$", "<7|8>=8",          ARG_REX_ICASE,  "Data bits");
     struct arg_rex *sbit   = arg_rex0(NULL, "stop-bits", "^1$|^2$", "<1|2>=1",          ARG_REX_ICASE,  "Stop bits");
     struct arg_rex *parity = arg_rexn("p", "parity",     "^N$|^E$|^O$",
-                                                                    "<N|E|O>=E", 1, 3,  ARG_REX_ICASE,  "Parity");
+                                                                    "<N|E|O>=E", 0, 3,  ARG_REX_ICASE,  "Parity");
     struct arg_end *end1    = arg_end(20);
     /* TCP */
     struct arg_rex *tcp    = arg_rex1(NULL, NULL,        "^TCP$",   NULL,               ARG_REX_ICASE,  NULL);
@@ -110,10 +112,10 @@ int main(int argc, char **argv)
     struct arg_end *end2    = arg_end(20);
 
     void* argtable1[] = {rtu, addr, addr1, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
-                            dev, baud, dbit, sbit, parity, dwrite, count, tout, debug, help, end1};
+                            dev, baud, dbit, sbit, parity, dwrite, count, tout, base1, debug, help, end1};
 
     void* argtable2[] = {tcp, addr, addr1, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
-                            port, ip, dwrite, count, tout, debug, help, end2};
+                            port, ip, dwrite, count, tout, base1, debug, help, end2};
 
     /* defaults */
     count->ival[0]      = 1;
@@ -125,9 +127,15 @@ int main(int argc, char **argv)
 
     int nerrors1 = arg_parse(argc,argv,argtable1);
     int nerrors2 = arg_parse(argc,argv,argtable2);
+
+    /* array defaults */
+    if(parity->count == 0) {
+        parity->count = 1;
+        parity->sval[0] = "E";
+    }
+
     /* special case: '--help' takes precedence over error reporting */
-    if (help->count > 0)
-    {
+    if (help->count) {
         printf("Modbus client utils.\n\n");
         if (rtu->count) {
             arg_print_syntax(stdout, argtable1, "\n");
@@ -141,17 +149,15 @@ int main(int argc, char **argv)
         return 0;
     }
     /* If the parser returned any errors then display them and exit */
-    if (rtu->count > 0)
-    {
-        if(nerrors1 > 0) {
+    if (rtu->count) {
+        if(nerrors1) {
             /* Display the error details contained in the arg_end struct.*/
             arg_print_errors(stdout, end1, "modbus_client rtu");
             printf("Try '%s --help' for more information.\n", "modbus_client rtu");
             exit(EXIT_FAILURE);
         }
-    } else if (tcp->count > 0)
-    {
-        if(nerrors2 > 0) {
+    } else if (tcp->count) {
+        if(nerrors2) {
             /* Display the error details contained in the arg_end struct.*/
             arg_print_errors(stdout, end2, "modbus_client tcp");
             printf("Try '%s --help' for more information.\n", "modbus_client tcp");
@@ -173,6 +179,10 @@ int main(int argc, char **argv)
         addrScan = true;
     } else {
         addrEnd = addrStart;
+    }
+
+    if(base1->count) {
+        reg->ival[0]--;
     }
 
     if(addrScan && addrStart >= addrEnd) {
@@ -259,7 +269,7 @@ int main(int argc, char **argv)
             printf("\n");
     }
 
-    if (rtu->count > 0) {
+    if (rtu->count) {
         char prefix[32] = {0};
         int prefixLen = 0;
         bool scanMode = baud->count > 1 || parity->count > 1;
