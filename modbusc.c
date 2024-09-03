@@ -39,18 +39,6 @@
 #define PROGMANE "modbusc"
 
 typedef enum {
-    FuncNone =          -1,
-    ReadCoils           = 0x01,
-    ReadDiscreteInput   = 0x02,
-    ReadHoldingRegisters= 0x03,
-    ReadInputRegisters  = 0x04,
-    WriteSingleCoil     = 0x05,
-    WriteSingleRegister = 0x06,
-    WriteMultipleCoils  = 0x0f,
-    WriteMultipleRegisters  = 0x10
-} FuncType;
-
-typedef enum {
         DataInt,
         Data8Array,
         Data16Array
@@ -194,26 +182,26 @@ int main(int argc, char **argv)
 
     //choose write data type
     switch (func->ival[0]) {
-    case(ReadCoils):
+    case(MODBUS_FC_READ_COILS):
         wDataType = Data8Array;
         break;
-    case(ReadDiscreteInput):
+    case(MODBUS_FC_READ_DISCRETE_INPUTS):
         wDataType = DataInt;
         break;
-    case(ReadHoldingRegisters):
-    case(ReadInputRegisters):
+    case(MODBUS_FC_READ_HOLDING_REGISTERS):
+    case(MODBUS_FC_READ_INPUT_REGISTERS):
         wDataType = Data16Array;
         break;
-    case(WriteSingleCoil):
-    case(WriteSingleRegister):
+    case(MODBUS_FC_WRITE_SINGLE_COIL):
+    case(MODBUS_FC_WRITE_SINGLE_REGISTER):
         wDataType = DataInt;
         isWriteFunction = 1;
         break;
-    case(WriteMultipleCoils):
+    case(MODBUS_FC_WRITE_MULTIPLE_COILS):
         wDataType = Data8Array;
         isWriteFunction = 1;
         break;
-    case(WriteMultipleRegisters):
+    case(MODBUS_FC_WRITE_MULTIPLE_REGISTERS):
         wDataType = Data16Array;
         isWriteFunction = 1;
         break;
@@ -350,32 +338,32 @@ int process_request(modbus_t* ctx, int addrStart, int addrEnd, int func, int reg
         modbus_set_slave(ctx, i);
 
         switch (func) {
-        case(ReadCoils):
+        case(MODBUS_FC_READ_COILS):
             ret = modbus_read_bits(ctx, reg, nb, data.data8);
             break;
-        case(ReadDiscreteInput):
+        case(MODBUS_FC_READ_DISCRETE_INPUTS):
             printf("ReadDiscreteInput: not implemented yet!\n");
             dataType = DataInt;
             break;
-        case(ReadHoldingRegisters):
+        case(MODBUS_FC_READ_HOLDING_REGISTERS):
             ret = modbus_read_registers(ctx, reg, nb, data.data16);
             break;
-        case(ReadInputRegisters):
+        case(MODBUS_FC_READ_INPUT_REGISTERS):
             ret = modbus_read_input_registers(ctx, reg, nb, data.data16);
             break;
-        case(WriteSingleCoil):
+        case(MODBUS_FC_WRITE_SINGLE_COIL):
             ret = modbus_write_bit(ctx, reg, data.dataInt);
             isWriteFunction = true;
             break;
-        case(WriteSingleRegister):
+        case(MODBUS_FC_WRITE_SINGLE_REGISTER):
             ret = modbus_write_register(ctx, reg, data.dataInt);
             isWriteFunction = true;
             break;
-        case(WriteMultipleCoils):
+        case(MODBUS_FC_WRITE_MULTIPLE_COILS):
             ret = modbus_write_bits(ctx, reg, nb, data.data8);
             isWriteFunction = true;
             break;
-        case(WriteMultipleRegisters):
+        case(MODBUS_FC_WRITE_MULTIPLE_REGISTERS):
             ret = modbus_write_registers(ctx, reg, nb, data.data16);
             isWriteFunction = true;
             break;
