@@ -29,7 +29,8 @@
 #include <stdio.h>
 #include <ctype.h>
 
-int getInt(const char str[], int *ok) {
+int getInt(const char str[], int *ok)
+{
     int value;
     int ret = sscanf(str, "0x%x", &value);
     if (0 >= ret) {//couldn't convert from hex, try dec
@@ -41,6 +42,20 @@ int getInt(const char str[], int *ok) {
     }
 
     return value;
+}
+
+void sleep_ms(int milliseconds)
+{
+#ifdef WIN32
+    Sleep(milliseconds);
+#elif _POSIX_C_SOURCE >= 199309L
+    struct timespec ts;
+    ts.tv_sec  = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000;
+    nanosleep(&ts, NULL);
+#else
+    usleep(milliseconds * 1000);
+#endif
 }
 
 #endif //MBU_COMMON_H

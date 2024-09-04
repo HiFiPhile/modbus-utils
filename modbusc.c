@@ -50,7 +50,7 @@ typedef union {
     uint16_t *data16;
 } Data;
 
-int process_request(modbus_t* ctx, int addrStart, int addrEnd, int func, int reg, int nb, WriteDataType dataType, Data data, const char* prefixScan);
+int process_request(modbus_t* ctx, int addrStart, int addrEnd, int func, int reg, int nb, WriteDataType dataType, Data data, const char* prefixScan, int intfDelay);
 
 int verbose = 0;
 
@@ -83,6 +83,7 @@ int main(int argc, char **argv)
     struct arg_int *count  = arg_int0("c", "count",                 "<reg>",                            "Data read count");
     struct arg_int *tout   = arg_int0("o", "timeout",               "<ms>",                             "Request timeout");
     struct arg_lit *base1  = arg_lit0("1", "base-1",                                                    "Base 1 addressing");
+    struct arg_int *intfd  = arg_int0("e", "itf-delay",             "<ms>",                             "Interframe delay");
     struct arg_lit *debug  = arg_litn("v", "verbose",                      0, 2,                        "Enable verbpse output");
     struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
     /* RTU */
@@ -102,10 +103,10 @@ int main(int argc, char **argv)
     struct arg_end *end2    = arg_end(20);
 
     void* argtable1[] = {rtu, addr, addr1, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
-                            dev, baud, dbit, sbit, parity, dwrite, count, tout, base1, debug, help, end1};
+                            dev, baud, dbit, sbit, parity, dwrite, count, tout, base1, intfd, debug, help, end1};
 
     void* argtable2[] = {tcp, addr, addr1, reg, func, func1, func2, func3, func4, func5, func6, func7, func8,
-                            port, ip, dwrite, count, tout, base1, debug, help, end2};
+                            port, ip, dwrite, count, tout, base1, intfd, debug, help, end2};
 
     /* defaults */
     count->ival[0]      = 1;
@@ -114,6 +115,7 @@ int main(int argc, char **argv)
     sbit->sval[0]       = "1";
     port->ival[0]       = 502;
     ip->sval[0]         = "127.0.0.1";
+    intfd->ival[0]      = 200;
 
     int nerrors1 = arg_parse(argc,argv,argtable1);
     int nerrors2 = arg_parse(argc,argv,argtable2);
@@ -286,7 +288,7 @@ int main(int argc, char **argv)
                     return -1;
                 }
 
-                process_request(ctx, addrStart, addrEnd, func->ival[0], reg->ival[0], readWriteNo, wDataType, data, prefix);
+                process_request(ctx, addrStart, addrEnd, func->ival[0], reg->ival[0], readWriteNo, wDataType, data, prefix, intfd->ival[0]);
 
                 //cleanup
                 modbus_close(ctx);
@@ -307,7 +309,7 @@ int main(int argc, char **argv)
             return -1;
         }
 
-        process_request(ctx, addrStart, addrEnd, func->ival[0], reg->ival[0], readWriteNo, wDataType, data, "");
+        process_request(ctx, addrStart, addrEnd, func->ival[0], reg->ival[0], readWriteNo, wDataType, data, "", intfd->ival[0]);
 
         //cleanup
         modbus_close(ctx);
@@ -329,7 +331,7 @@ int main(int argc, char **argv)
     exit(0);
 }
 
-int process_request(modbus_t* ctx, int addrStart, int addrEnd, int func, int reg, int nb, WriteDataType dataType, Data data, const char* prefixScan)
+int process_request(modbus_t* ctx, int addrStart, int addrEnd, int func, int reg, int nb, WriteDataType dataType, Data data, const char* prefixScan, int intfDelay)
 {
     int ret = -1;
     bool isWriteFunction = false;
@@ -397,5 +399,7 @@ int process_request(modbus_t* ctx, int addrStart, int addrEnd, int func, int reg
         else if (!addrScan){
             printf("ERROR occured, ret:%d, %s\n", ret, modbus_strerror(errno));
         }
+        if(i != addrEnd)
+            sleep_ms(intfDelay);
     }
 }
