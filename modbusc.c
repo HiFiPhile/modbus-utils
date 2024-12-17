@@ -80,10 +80,10 @@ int main(int argc, char **argv)
     struct arg_rem *func7  = arg_rem("",                                                                "    0x0F : Write Multiple Coils");
     struct arg_rem *func8  = arg_rem("",                                                                "    0x10 : Write Multiple registers");
     struct arg_int *dwrite = arg_intn("w", "write",                 "<n>", 0, 123,                      "Data to write");
-    struct arg_int *count  = arg_int0("c", "count",                 "<reg>",                            "Data read count");
-    struct arg_int *tout   = arg_int0("o", "timeout",               "<ms>",                             "Request timeout");
+    struct arg_int *count  = arg_int0("c", "count",                 "<reg>=1",                          "Data read count");
+    struct arg_int *tout   = arg_int0("o", "timeout",               "<ms>=1000",                        "Request timeout");
     struct arg_lit *base1  = arg_lit0("1", "base-1",                                                    "Base 1 addressing");
-    struct arg_int *intfd  = arg_int0("e", "itf-delay",             "<ms>",                             "Interframe delay");
+    struct arg_int *intfd  = arg_int0("e", "itf-delay",             "<ms>=200",                         "Interframe delay");
     struct arg_lit *debug  = arg_litn("v", "verbose",                      0, 2,                        "Enable verbpse output");
     struct arg_lit *help   = arg_lit0("h", "help",                                                      "Print this help and exit");
     /* RTU */
