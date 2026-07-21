@@ -1,5 +1,6 @@
 OUTPUT_DIR := build
 VERSION := $(strip $(shell sed -n '1p' VERSION))
+EXEEXT ?=
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
@@ -29,7 +30,6 @@ CLIENT_OBJECTS := $(OUTPUT_DIR)/modbusc.o $(OUTPUT_DIR)/mbu-common.o $(OUTPUT_DI
 SERVER_OBJECTS := $(OUTPUT_DIR)/modbuss.o $(OUTPUT_DIR)/mbu-common.o $(OUTPUT_DIR)/argtable3.o
 OBJECTS := $(sort $(CLIENT_OBJECTS) $(SERVER_OBJECTS))
 DEPS := $(OBJECTS:.o=.d)
-PROGRAMS := $(OUTPUT_DIR)/modbusc $(OUTPUT_DIR)/modbuss
 TEST_PROGRAM := $(OUTPUT_DIR)/test-common
 FORMAT_SOURCES := mbu-common.c mbu-common.h modbusc.c modbuss.c tests/test-common.c
 STRICT_WARNINGS := -Wconversion -Wshadow -Wformat=2 -Werror
@@ -59,14 +59,19 @@ ifneq (,$(findstring MINGW,$(MSYSTEM)))
 LDLIBS += -lws2_32
 endif
 
-.PHONY: all check clean distclean format format-check install lib sanitize test uninstall
+MINGW_PREFIX ?= x86_64-w64-mingw32
+MINGW_LDFLAGS ?= -static -static-libgcc
+
+PROGRAMS := $(OUTPUT_DIR)/modbusc$(EXEEXT) $(OUTPUT_DIR)/modbuss$(EXEEXT)
+
+.PHONY: all check clean distclean format format-check install lib mingw64 sanitize test uninstall
 
 all: $(PROGRAMS)
 
-$(OUTPUT_DIR)/modbusc: $(CLIENT_OBJECTS) $(LIBMODBUS_DEPS)
+$(OUTPUT_DIR)/modbusc$(EXEEXT): $(CLIENT_OBJECTS) $(LIBMODBUS_DEPS)
 	$(CC) $(LDFLAGS) $(CLIENT_OBJECTS) $(LDLIBS) -o $@
 
-$(OUTPUT_DIR)/modbuss: $(SERVER_OBJECTS) $(LIBMODBUS_DEPS)
+$(OUTPUT_DIR)/modbuss$(EXEEXT): $(SERVER_OBJECTS) $(LIBMODBUS_DEPS)
 	$(CC) $(LDFLAGS) $(SERVER_OBJECTS) $(LDLIBS) -o $@
 
 $(OUTPUT_DIR)/modbusc.o: modbusc.c $(COMMON_HEADER) $(ARGTABLE_HEADER) VERSION | \
@@ -100,6 +105,11 @@ $(LIBMODBUS_LIBRARY): $(LIBMODBUS_CONFIG_STAMP)
 endif
 
 lib: $(LIBMODBUS_DEPS)
+
+mingw64:
+	$(MAKE) clean
+	$(MAKE) all CC=$(MINGW_PREFIX)-gcc EXEEXT=.exe MSYSTEM=MINGW64 \
+		CONF_OPT=--host=$(MINGW_PREFIX) LDFLAGS="$(MINGW_LDFLAGS)"
 
 test: all $(TEST_PROGRAM)
 	$(TEST_PROGRAM)
@@ -142,7 +152,7 @@ install: all
 	install -m 755 $(PROGRAMS) $(DESTDIR)$(BINDIR)
 
 uninstall:
-	$(RM) $(DESTDIR)$(BINDIR)/modbusc $(DESTDIR)$(BINDIR)/modbuss
+	$(RM) $(DESTDIR)$(BINDIR)/modbusc$(EXEEXT) $(DESTDIR)$(BINDIR)/modbuss$(EXEEXT)
 
 clean:
 	$(RM) -r $(OUTPUT_DIR)

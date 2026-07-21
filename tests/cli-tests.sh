@@ -38,11 +38,11 @@ expect_failure()
 }
 
 expect_success "Usage:" "$client" --help
-expect_success "0.2.0" "$client" --version
+expect_success "0.2.1" "$client" --version
 expect_success "--ip" "$client" tcp --help
 expect_success "--data-bits" "$client" rtu --help
 expect_success "Usage:" "$server" --help
-expect_success "0.2.0" "$server" --version
+expect_success "0.2.1" "$server" --version
 expect_success "--ip" "$server" tcp --help
 expect_success "--data-bits" "$server" rtu --help
 

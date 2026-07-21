@@ -3,7 +3,15 @@
 This project follows semantic versioning. Notable user-visible changes are
 recorded here.
 
-## 0.2.0 - 2026-07-21
+## Unreleased
+
+### Added
+
+- Tag-driven release workflow with checksummed Linux and statically linked
+  MinGW64 archives.
+- Reusable `make mingw64` cross-compilation target.
+
+## 0.2.1 - 2026-07-21
 
 ### Added
 

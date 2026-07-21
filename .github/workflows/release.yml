@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing semantic-version tag to release (for example, 0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Validate semantic version
+        id: release
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REQUESTED_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use semantic version form X.Y.Z: $REQUESTED_TAG" >&2
+            exit 1
+          fi
+          echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Build Linux x86_64
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+      - name: Verify source version
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: test "$(sed -n '1p' VERSION)" = "$RELEASE_TAG"
+      - name: Build and test
+        run: |
+          make check
+          make -j2
+          make test
+      - name: Package binaries
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          package="modbus-utils-${RELEASE_TAG}-linux-x86_64"
+          mkdir -p "dist/$package"
+          strip build/modbusc build/modbuss
+          install -m 755 build/modbusc build/modbuss "dist/$package/"
+          install -m 644 README.md LICENSE.md CHANGELOG.md THIRD_PARTY.md "dist/$package/"
+          tar -C dist -czf "dist/${package}.tar.gz" "$package"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-linux-x86_64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  mingw64:
+    name: Build MinGW64 static
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+      - name: Verify source version
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: test "$(sed -n '1p' VERSION)" = "$RELEASE_TAG"
+      - name: Install MinGW64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 zip
+      - name: Build static Windows binaries
+        run: |
+          if grep -q '^mingw64:' Makefile; then
+            make mingw64
+          else
+            # Compatibility path for tags created before the dedicated target.
+            make clean
+            make -j2 \
+              CC=x86_64-w64-mingw32-gcc \
+              MSYSTEM=MINGW64 \
+              CONF_OPT=--host=x86_64-w64-mingw32 \
+              LDFLAGS="-static -static-libgcc"
+          fi
+      - name: Verify PE format and static runtime
+        run: |
+          set -euo pipefail
+          for executable in build/modbusc.exe build/modbuss.exe; do
+            file "$executable" | grep -q 'PE32+' || {
+              echo "Not a 64-bit PE executable: $executable" >&2
+              exit 1
+            }
+            imports=$(x86_64-w64-mingw32-objdump -p "$executable" |
+              sed -n 's/^[[:space:]]*DLL Name: //p')
+            printf '%s imports:\n%s\n' "$executable" "$imports"
+            if printf '%s\n' "$imports" |
+              grep -Eiq 'libgcc|libstdc\+\+|libwinpthread|libmodbus'; then
+              echo "Unexpected dynamic runtime dependency in $executable" >&2
+              exit 1
+            fi
+          done
+      - name: Package binaries
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          package="modbus-utils-${RELEASE_TAG}-windows-x86_64-static"
+          mkdir -p "dist/$package"
+          x86_64-w64-mingw32-strip build/modbusc.exe build/modbuss.exe
+          install -m 755 build/modbusc.exe build/modbuss.exe "dist/$package/"
+          install -m 644 README.md LICENSE.md CHANGELOG.md THIRD_PARTY.md "dist/$package/"
+          (cd dist && zip -r "${package}.zip" "$package")
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-windows-x86_64-static
+          path: dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [prepare, linux, mingw64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum -- *.tar.gz *.zip > SHA256SUMS
+          cat SHA256SUMS
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --verify-tag \
+              --generate-notes \
+              --title "modbus-utils $RELEASE_TAG"
+          fi

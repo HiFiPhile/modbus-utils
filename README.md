@@ -6,8 +6,9 @@
 - `modbuss` runs a Modbus TCP or RTU test server with an in-memory data map.
 
 The current project version is recorded in [`VERSION`](VERSION). Linux is the
-continuously tested platform. The source contains Windows compatibility paths,
-but Windows builds are not currently part of CI.
+continuously tested platform. Tagged releases also provide statically linked
+MinGW64 binaries for 64-bit Windows; Windows runtime tests are not currently
+part of CI.
 
 ## Build
 
@@ -34,6 +35,15 @@ make USE_SYSTEM_LIBMODBUS=1
 This mode requires `pkg-config` and a `libmodbus.pc` file. Add `STATIC=1` to ask
 `pkg-config` for static dependencies. Add `DEBUG=1` for an unoptimized debug
 build.
+
+Cross-compile static 64-bit Windows binaries with a MinGW64 toolchain:
+
+```sh
+make mingw64
+```
+
+This produces `build/modbusc.exe` and `build/modbuss.exe` using the bundled
+libmodbus source.
 
 Install under `/usr/local` with `make install`, or stage a package with, for
 example:
@@ -119,6 +129,10 @@ make format     # apply the repository clang-format configuration
 The default tests use only localhost TCP sockets and require no Modbus hardware.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the expected contribution workflow
 and [`THIRD_PARTY.md`](THIRD_PARTY.md) for bundled dependency provenance.
+
+Pushing a semantic-version tag such as `0.3.0` runs the release workflow. It
+publishes Linux and static MinGW64 archives with a `SHA256SUMS` file. The same
+workflow can be started manually for an existing tag.
 
 ## Exit status
 
