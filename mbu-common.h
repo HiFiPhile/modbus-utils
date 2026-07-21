@@ -1,61 +1,18 @@
-/*
-*  MIT License
-
-*  Copyright (c) 2013  Krzysztow
-
-*  Permission is hereby granted, free of charge, to any person obtaining a copy
-*  of this software and associated documentation files (the "Software"), to deal
-*  in the Software without restriction, including without limitation the rights
-*  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-*  copies of the Software, and to permit persons to whom the Software is
-*  furnished to do so, subject to the following conditions:
-
-*  The above copyright notice and this permission notice shall be included in all
-*  copies or substantial portions of the Software.
-
-*  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-*  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-*  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-*  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-*  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-*  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-*  SOFTWARE.
-*/
-
 #ifndef MBU_COMMON_H
 #define MBU_COMMON_H
 
-#include <string.h>
-#include <stdio.h>
-#include <ctype.h>
+#include <stdint.h>
 
-int getInt(const char str[], int *ok)
-{
-    int value;
-    int ret = sscanf(str, "0x%x", &value);
-    if (0 >= ret) {//couldn't convert from hex, try dec
-        ret = sscanf(str, "%d", &value);
-    }
-
-    if (0 != ok) {
-        *ok = (0 < ret);
-    }
-
-    return value;
-}
-
-void sleep_ms(int milliseconds)
-{
-#ifdef WIN32
-    Sleep(milliseconds);
-#elif _POSIX_C_SOURCE >= 199309L
-    struct timespec ts;
-    ts.tv_sec  = milliseconds / 1000;
-    ts.tv_nsec = (milliseconds % 1000) * 1000000;
-    nanosleep(&ts, NULL);
-#else
-    usleep(milliseconds * 1000);
+#ifndef MBU_VERSION
+#define MBU_VERSION "development"
 #endif
-}
 
-#endif //MBU_COMMON_H
+#define MBU_MAX_SLAVE_ADDRESS 247
+#define MBU_MAX_DATA_ADDRESS 65535
+
+int mbu_parse_int(const char *text, int minimum, int maximum, int *value);
+int mbu_parse_address_range(const char *text, int *start, int *end);
+int mbu_timeout_from_ms(int milliseconds, uint32_t *seconds, uint32_t *microseconds);
+void mbu_sleep_ms(unsigned int milliseconds);
+
+#endif

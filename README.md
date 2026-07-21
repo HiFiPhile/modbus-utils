@@ -1,30 +1,132 @@
-modbus-utils
-============
+# modbus-utils
 
-Modbus client and server command line tools based on libmodbus.
+`modbus-utils` provides two small command-line programs based on libmodbus:
 
-NOTE:
-Both apps are linked with libmodbus library. After repository is pulled do the following:
+- `modbusc` sends Modbus TCP or RTU requests.
+- `modbuss` runs a Modbus TCP or RTU test server with an in-memory data map.
 
-compilation
-===========
+The current project version is recorded in [`VERSION`](VERSION). Linux is the
+continuously tested platform. The source contains Windows compatibility paths,
+but Windows builds are not currently part of CI.
 
-## option 1 (make)
+## Build
+
+Prerequisites are a C compiler, POSIX Make, and the normal tools needed by an
+Autotools `configure` script. The default build uses the bundled, pinned
+libmodbus source:
 
 ```sh
 git clone https://github.com/HiFiPhile/modbus-utils
 cd modbus-utils
-
-# build libmodbus
-pushd ./libmodbus
-./configure --enable-static
-make
-popd
-
 make
 ```
 
-usage
-=====
+The binaries are written to `build/modbusc` and `build/modbuss`. The build
+configures libmodbus automatically; no manual build in the dependency directory
+is required.
 
-Run apps with no arguments, descriptive help information will be provided.
+To use an installed libmodbus instead:
+
+```sh
+make USE_SYSTEM_LIBMODBUS=1
+```
+
+This mode requires `pkg-config` and a `libmodbus.pc` file. Add `STATIC=1` to ask
+`pkg-config` for static dependencies. Add `DEBUG=1` for an unoptimized debug
+build.
+
+Install under `/usr/local` with `make install`, or stage a package with, for
+example:
+
+```sh
+make install DESTDIR=/tmp/modbus-utils-package PREFIX=/usr
+```
+
+## Client examples
+
+Read ten holding registers over TCP:
+
+```sh
+build/modbusc tcp --ip 127.0.0.1 --port 502 --addr 1 \
+    --reg 0 --func 3 --count 10
+```
+
+Write three registers:
+
+```sh
+build/modbusc tcp --ip 127.0.0.1 --addr 1 --reg 20 --func 16 \
+    --write 1 --write 2 --write 3
+```
+
+Read input registers over RTU:
+
+```sh
+build/modbusc rtu --dev /dev/ttyUSB0 --baud 19200 --parity E \
+    --addr 1 --reg 0 --func 4 --count 4
+```
+
+Use an inclusive address range such as `--addr 1.10` to scan slave addresses.
+RTU baud rates and parities can also be repeated to scan serial settings. Use
+`--base-1` when register values in device documentation start at one.
+
+Supported function codes are:
+
+| Code | Operation |
+|---:|---|
+| `01` | Read coils |
+| `02` | Read discrete inputs |
+| `03` | Read holding registers |
+| `04` | Read input registers |
+| `05` | Write single coil |
+| `06` | Write single register |
+| `15` (`0F`) | Write multiple coils |
+| `16` (`10`) | Write multiple registers |
+
+Run `build/modbusc --help`, `build/modbusc tcp --help`, or
+`build/modbusc rtu --help` for the complete option list.
+
+## Server examples
+
+Start a TCP test server on an unprivileged port:
+
+```sh
+build/modbuss tcp --ip 127.0.0.1 --port 1502 --addr 1
+```
+
+Start an RTU server:
+
+```sh
+build/modbuss rtu --dev /dev/ttyUSB0 --baud 19200 --parity E --addr 1
+```
+
+The server defaults to 100 coils, discrete inputs, holding registers, and input
+registers, all initialized to zero. Adjust those sizes with `--co`, `--di`,
+`--hr`, and `--ir`.
+
+TCP port 502 may require elevated privileges on some systems. Prefer a port
+above 1024 for local testing. Use `--ip 0.0.0.0` only when the server should be
+reachable through every IPv4 interface.
+
+## Tests and development checks
+
+```sh
+make check      # formatting and strict compiler diagnostics
+make test       # unit, CLI, and TCP loopback tests
+make sanitize   # test with AddressSanitizer and UndefinedBehaviorSanitizer
+make format     # apply the repository clang-format configuration
+```
+
+The default tests use only localhost TCP sockets and require no Modbus hardware.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the expected contribution workflow
+and [`THIRD_PARTY.md`](THIRD_PARTY.md) for bundled dependency provenance.
+
+## Exit status
+
+Both programs return zero for successful commands and nonzero for invalid
+arguments, setup failures, connection failures, or requests for which no slave
+responded successfully. Diagnostics are written to standard error.
+
+## License
+
+The project is distributed under the MIT License; see [`LICENSE.md`](LICENSE.md).
+Bundled dependencies retain their own licenses.

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.compiler }} build and test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    env:
+      CC: ${{ matrix.compiler }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install formatting tools
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting and compiler diagnostics
+        run: make check
+      - name: Build and test
+        run: make test
+
+  sanitizers:
+    name: Address and undefined behavior sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test with sanitizers
+        run: make sanitize

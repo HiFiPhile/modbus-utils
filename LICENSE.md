@@ -1,8 +1,8 @@
 The MIT License (MIT)
 =====================
 
-Copyright © `2013` `Krzysztow`
-Copyright © `2024` `Zixun LI`
+Copyright © `2013` `Krzysztow` — original author
+Copyright © `2024–2026` `Zixun LI` — rewritten and maintained by Zixun LI
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation

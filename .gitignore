@@ -1,8 +1,34 @@
+# Project build outputs
+/build/
+/.vscode-ctags
+/config.log
+
+# Compiler and libtool outputs
 *.o
 *.exe
 *.la
 *.lo
-.deps
-.libs
+.deps/
+.libs/
 *.pc
-libmodbus/config*
+*~
+
+# Generated files from the bundled libmodbus Autotools build
+/libmodbus/Makefile
+/libmodbus/config.h
+/libmodbus/config.log
+/libmodbus/config.status
+/libmodbus/libtool
+/libmodbus/stamp-h1
+/libmodbus/src/Makefile
+/libmodbus/src/win32/modbus.dll.manifest
+/libmodbus/tests/Makefile
+/libmodbus/tests/stamp-h2
+/libmodbus/tests/bandwidth-client
+/libmodbus/tests/bandwidth-server-many-up
+/libmodbus/tests/bandwidth-server-one
+/libmodbus/tests/random-test-client
+/libmodbus/tests/random-test-server
+/libmodbus/tests/unit-test-client
+/libmodbus/tests/unit-test-server
+/libmodbus/tests/version
